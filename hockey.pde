@@ -38,10 +38,11 @@ const byte TD2 = 7;
 const byte TD3 = 6;
 const byte TD4 = 5;
 
-Button start(0);  //  7 points
+PowerPin beeper(0);
+Button start(1);  //  7 points
 Button goal1(A4);
 Button goal2(A5);
-PowerPin beeper(1);
+
 
 void setsegments(byte plus, boolean a, boolean b, boolean c, boolean d, boolean e, boolean f, boolean g) {
     digitalWrite(plus, LOW);
@@ -151,7 +152,7 @@ void setup10() {
     gamemode = 10;
     overtime = 0;
     win = false;
-    endtime = millis() + 5000; //600000;
+    endtime = millis() + 600000;
     show();
 }
 
@@ -164,6 +165,7 @@ void loop() {
     if (start.pressed()) {
       if (win) gamemode == 10 ? setup10() : setup7();
       else gamemode == 7 ? setup10() : setup7();
+      beeper.on(200);
     }
 
     show();
@@ -183,7 +185,7 @@ void loop() {
             overtime = 2;
           } else {
             overtime = 1;
-            endtime = millis() + 3000; //120000;
+            endtime = millis() + 120000;
           }
           return;
         }
