@@ -48,7 +48,7 @@ const byte TD2 = 7;
 const byte TD3 = 6;
 const byte TD4 = 5;
 
-PowerPin beeper(0);
+PowerPin buzzer(0);
 Button   startbutton(1);
 Button   goal1(A4);
 Button   goal2(A5);
@@ -159,7 +159,7 @@ void show() {
 
 
 void start(byte newmode) {
-  beeper.on(200);
+  buzzer.on(200);
   score1   = 0;
   score2   = 0;
   gamemode = newmode;
@@ -169,27 +169,27 @@ void start(byte newmode) {
 }
 
 void stop() {
-  beeper.on(2000);
+  buzzer.on(2000);
   gameover = true;
 }
 
 void loop() {
-  beeper.check();
+  buzzer.check();
   if (startbutton.pressed()) start(gameover ? gamemode : (gamemode == 10 ? 7 : 10));
     
   show();
     
   if (gameover || !gamemode) return;
 
-  if (goal1.pressed()) { beeper.on(800); score1++; }
-  if (goal2.pressed()) { beeper.on(800); score2++; }
+  if (goal1.pressed()) { buzzer.on(800); score1++; }
+  if (goal2.pressed()) { buzzer.on(800); score2++; }
     
   if (gamemode == 7 && (score1 >= 7 || score2 >= 7)) stop();
   if (suddendeath && score1 != score2) stop();
 
   if (gamemode == 10 && !suddendeath && (millis() >= endtime)) {
     if (score1 == score2) {
-      beeper.on(200);
+      buzzer.on(200);
       overtime++;
       endtime = millis() + 120000;
     }
