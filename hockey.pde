@@ -1,3 +1,9 @@
+/*
+ * RevSpace Air Hockey
+ * by Juerd <#####@juerd.nl>
+ * CC0
+ */
+
 #include <Button.h>
 #include <PowerPin.h>
 
@@ -18,6 +24,10 @@ byte digits[12][7] = {
     { 0,0,0,0,0,0,0 },  // = off
     { 0,0,0,0,0,0,1 }   // = -
 };
+#define BLANK 10
+#define DASH  11
+
+// PIN ASSIGNMENTS
 
 const byte SPECIAL = 2;
 const byte SEGMENT_MID  = 11;
@@ -28,175 +38,161 @@ const byte SEGMENT_RBOT = A1;
 const byte SEGMENT_RTOP = A2;
 const byte SEGMENT_TOP  = A3;
 
-const byte P1D1 = 4;
+const byte P1D1 = 4;   // Player one, digit one (leftmost)
 const byte P1D2 = 3;
 const byte P2D1 = 10;
 const byte P2D2 = 9;
 
-const byte TD1 = 8;
+const byte TD1 = 8;  // Time, digit one (leftmost)
 const byte TD2 = 7;
 const byte TD3 = 6;
 const byte TD4 = 5;
 
 PowerPin beeper(0);
-Button start(1);  //  7 points
-Button goal1(A4);
-Button goal2(A5);
+Button   startbutton(1);
+Button   goal1(A4);
+Button   goal2(A5);
 
+void setup() {
+  pinMode(SPECIAL,      OUTPUT);
+  pinMode(SEGMENT_MID,  OUTPUT);
+  pinMode(SEGMENT_LTOP, OUTPUT);
+  pinMode(SEGMENT_LBOT, OUTPUT);
+  pinMode(SEGMENT_BOT,  OUTPUT);
+  pinMode(SEGMENT_RBOT, OUTPUT);
+  pinMode(SEGMENT_RTOP, OUTPUT);
+  pinMode(SEGMENT_TOP,  OUTPUT);
+  pinMode(P1D1,         OUTPUT);
+  pinMode(P1D2,         OUTPUT);
+  pinMode(P2D1,         OUTPUT);
+  pinMode(P2D2,         OUTPUT);
+  pinMode(TD1,          OUTPUT);
+  pinMode(TD2,          OUTPUT);
+  pinMode(TD3,          OUTPUT);
+  pinMode(TD4,          OUTPUT);
+  digitalWrite(SPECIAL, HIGH);
+  digitalWrite(P1D1,    HIGH);
+  digitalWrite(P1D2,    HIGH);
+  digitalWrite(P2D1,    HIGH);
+  digitalWrite(P2D2,    HIGH);
+  digitalWrite(TD1,     HIGH);
+  digitalWrite(TD2,     HIGH);
+  digitalWrite(TD3,     HIGH);
+  digitalWrite(TD4,     HIGH);
+}
+
+// DISPLAY
 
 void setsegments(byte plus, boolean a, boolean b, boolean c, boolean d, boolean e, boolean f, boolean g) {
-    digitalWrite(plus, LOW);
-    digitalWrite(SEGMENT_MID,  !a);
-    digitalWrite(SEGMENT_LTOP, !b);
-    digitalWrite(SEGMENT_LBOT, !c);
-    digitalWrite(SEGMENT_BOT,  !d);
-    digitalWrite(SEGMENT_RBOT, !e);
-    digitalWrite(SEGMENT_RTOP, !f);
-    digitalWrite(SEGMENT_TOP,  !g);
-    delay(2);
-    digitalWrite(plus, HIGH);
+  digitalWrite(plus, LOW);
+  digitalWrite(SEGMENT_MID,  !a);
+  digitalWrite(SEGMENT_LTOP, !b);
+  digitalWrite(SEGMENT_LBOT, !c);
+  digitalWrite(SEGMENT_BOT,  !d);
+  digitalWrite(SEGMENT_RBOT, !e);
+  digitalWrite(SEGMENT_RTOP, !f);
+  digitalWrite(SEGMENT_TOP,  !g);
+  delay(2);
+  digitalWrite(plus, HIGH);
 }
 
 void setdigit(byte plus, byte digit) {
-    setsegments(plus, digits[digit][6], digits[digit][5], digits[digit][4], digits[digit][3], digits[digit][2], digits[digit][1], digits[digit][0]);
+  setsegments(plus, digits[digit][6], digits[digit][5], digits[digit][4], digits[digit][3], digits[digit][2], digits[digit][1], digits[digit][0]);
 }
 
-byte score1;
-byte score2;
-boolean win;
-byte gamemode = 0;
-unsigned long endtime = 0;
-byte overtime = 0;  // 1 = overtime, 2 = sudden death
+// GAME
+
+byte          score1;
+byte          score2;
+boolean       gameover;
+byte          gamemode = 0;
+unsigned long endtime;
+byte          overtime;
+
+#define suddendeath (overtime == 2)
 
 void show() {
+  if (!gamemode) {
+    setdigit(P1D1, DASH); 
+    setdigit(P1D2, DASH); 
+    setdigit(P2D1, DASH); 
+    setdigit(P2D2, DASH); 
+    return;
+  }
 
-
-    if (!gamemode) {
-      setdigit(P1D1, 11); 
-      setdigit(P1D2, 11); 
-      setdigit(P2D1, 11); 
-      setdigit(P2D2, 11); 
-      return;
-    }
-
-    boolean blink = (millis() % 1000) < 500;
-    if (!win || blink) {
-      setdigit(P1D1, (score1 >= 10) ? (score1 / 10) : 10);
-      setdigit(P1D2, score1 % 10);
-      setdigit(P2D1, (score2 >= 10) ? (score2 / 10) : 10);
-      setdigit(P2D2, score2 % 10);
-    } else {
-      setdigit(P1D1, 10);
-      setdigit(P1D2, 10);
-      setdigit(P1D1, 10);
-      setdigit(P2D2, 10);
-    }
+  boolean blink = (millis() % 1000) < 500;
+  if (gameover && blink) {
+    setdigit(P1D1, BLANK);
+    setdigit(P1D2, BLANK);
+    setdigit(P1D1, BLANK);
+    setdigit(P2D2, BLANK);
+  }
+  else {
+    setdigit(P1D1, (score1 >= 10) ? (score1 / 10) : BLANK);
+    setdigit(P1D2, score1 % 10);
+    setdigit(P2D1, (score2 >= 10) ? (score2 / 10) : BLANK);
+    setdigit(P2D2, score2 % 10);
+  }
     
-    setsegments(SPECIAL, 0, (gamemode == 10 ? (win ? 1 : blink) : 0), 0, (overtime == 2 ? blink : overtime), win, gamemode == 10, gamemode == 7);
+  setsegments(SPECIAL,
+    /* nothing   */ 0,
+    /* colon     */ (gamemode == 10 ? (gameover || suddendeath || blink) : 0),
+    /* nothing   */ 0,
+    /* overtime  */ (suddendeath ? blink : overtime),
+    /* gameover  */ gameover,
+    /* 10minutes */ gamemode == 10,
+    /* 7points   */ gamemode == 7
+  );
 
+  if (gamemode != 10) return;
 
-    if (gamemode != 10) return;
-    
-    unsigned long timeleft = (win || overtime == 2) ? 0 : (1 + (endtime - millis()) / 1000);
-    byte digit1 = (timeleft / 600) % 10;
-    setdigit(TD1, digit1 ? digit1 : 10);
-    setdigit(TD2, (timeleft / 60) % 10);
-    setdigit(TD3, (timeleft % 60) / 10);
-    setdigit(TD4, (timeleft % 10));
-
-}
-
-void setup() {
-    pinMode(SEGMENT_MID,  OUTPUT);
-    pinMode(SEGMENT_LTOP, OUTPUT);
-    pinMode(SEGMENT_LBOT, OUTPUT);
-    pinMode(SEGMENT_BOT,  OUTPUT);
-    pinMode(SEGMENT_RBOT, OUTPUT);
-    pinMode(SEGMENT_RTOP, OUTPUT);
-    pinMode(SEGMENT_TOP,  OUTPUT);
-    pinMode(P1D1, OUTPUT);
-    pinMode(P1D2, OUTPUT);
-    pinMode(P2D1, OUTPUT);
-    pinMode(P2D2, OUTPUT);
-    pinMode(TD1, OUTPUT);
-    pinMode(TD2, OUTPUT);
-    pinMode(TD3, OUTPUT);
-    pinMode(TD4, OUTPUT);
-    digitalWrite(P1D1, HIGH);
-    digitalWrite(P1D2, HIGH);
-    digitalWrite(P2D1, HIGH);
-    digitalWrite(P2D2, HIGH);
-    digitalWrite(TD1, HIGH);
-    digitalWrite(TD2, HIGH);
-    digitalWrite(TD3, HIGH);
-    digitalWrite(TD4, HIGH);
-    pinMode(SPECIAL, OUTPUT);
-    digitalWrite(SPECIAL, HIGH);
-
+  unsigned long timeleft =
+    (gameover || suddendeath)
+    ? 0
+    : (1 + (endtime - millis()) / 1000);
+  byte digit1 = (timeleft / 600) % 10;
+  setdigit(TD1, digit1 ? digit1 : BLANK);
+  setdigit(TD2, (timeleft / 60) % 10);
+  setdigit(TD3, (timeleft % 60) / 10);
+  setdigit(TD4, (timeleft % 10));
 }
 
 
-
-void setup7() {
-    score1 = 0;
-    score2 = 0;
-    gamemode = 7;
-    overtime = 0;
-    win = false;
-    show();
+void start(byte newmode) {
+  beeper.on(200);
+  score1   = 0;
+  score2   = 0;
+  gamemode = newmode;
+  overtime = 0;
+  endtime  = (gamemode == 10 ? (millis() + 600000) : 0);
+  gameover = false;
 }
 
-void setup10() {
-    score1 = 0;
-    score2 = 0;
-    gamemode = 10;
-    overtime = 0;
-    win = false;
-    endtime = millis() + 600000;
-    show();
-}
-
-void winner() {
-  win = 1;
+void stop() {
   beeper.on(2000);
+  gameover = true;
 }
 
 void loop() {
-    if (start.pressed()) {
-      if (win) gamemode == 10 ? setup10() : setup7();
-      else gamemode == 7 ? setup10() : setup7();
+  beeper.check();
+  if (startbutton.pressed()) start(gameover ? gamemode : (gamemode == 10 ? 7 : 10));
+    
+  show();
+    
+  if (gameover || !gamemode) return;
+
+  if (goal1.pressed()) { beeper.on(800); score1++; }
+  if (goal2.pressed()) { beeper.on(800); score2++; }
+    
+  if (gamemode == 7 && (score1 >= 7 || score2 >= 7)) stop();
+  if (suddendeath && score1 != score2) stop();
+
+  if (gamemode == 10 && !suddendeath && (millis() >= endtime)) {
+    if (score1 == score2) {
       beeper.on(200);
+      overtime++;
+      endtime = millis() + 120000;
     }
-
-    show();
-
-    if (!gamemode) return;
-    beeper.check();
-    
-    if (win) return;
-    
-    if (gamemode == 7 && (score1 >= 7 || score2 >= 7)) {
-        winner();
-        return;
-    }
-    if (overtime != 2 && gamemode == 10 && (millis() >= endtime)) {
-        if (score1 == score2) {
-          if (overtime == 1) {
-            overtime = 2;
-          } else {
-            overtime = 1;
-            endtime = millis() + 120000;
-          }
-          return;
-        }
-        winner();
-        return;
-    }
-    if (overtime == 2 && (score1 != score2)) {
-      winner();
-      return;
-    }
-    
-    if (goal1.pressed()) { beeper.on(800); score1++; }
-    if (goal2.pressed()) { beeper.on(800); score2++; }
+    else stop();
+  }
 }
