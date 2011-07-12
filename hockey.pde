@@ -48,10 +48,10 @@ const byte TD2 = 7;
 const byte TD3 = 6;
 const byte TD4 = 5;
 
-PowerPin buzzer(0);
-Button   startbutton(1);
-Button   goal1(A4);
-Button   goal2(A5);
+PowerPin buzzer(A5);
+Button   startbutton(A4);
+Button   goal1(0);
+Button   goal2(1);
 
 void setup() {
   pinMode(SPECIAL,      OUTPUT);
@@ -106,17 +106,19 @@ byte          score1;
 byte          score2;
 boolean       gameover;
 byte          gamemode = 0;
+unsigned long begintime;
 unsigned long endtime;
+unsigned long lastgoal = 0;
 byte          overtime;
 
 #define suddendeath (overtime == 2)
 
 void show() {
   if (!gamemode) {
-    setdigit(P1D1, DASH); 
-    setdigit(P1D2, DASH); 
-    setdigit(P2D1, DASH); 
-    setdigit(P2D2, DASH); 
+    setdigit(P1D1, DASH);
+    setdigit(P1D2, DASH);
+    setdigit(P2D1, DASH);
+    setdigit(P2D2, DASH);
     return;
   }
 
@@ -133,10 +135,10 @@ void show() {
     setdigit(P2D1, (score2 >= 10) ? (score2 / 10) : BLANK);
     setdigit(P2D2, score2 % 10);
   }
-    
+
   setsegments(SPECIAL,
     /* nothing   */ 0,
-    /* colon     */ (gamemode == 10 ? (gameover || suddendeath || blink) : 0),
+    /* colon     */ (gameover || suddendeath || blink),
     /* nothing   */ 0,
     /* overtime  */ (suddendeath ? blink : overtime),
     /* gameover  */ gameover,
@@ -144,17 +146,23 @@ void show() {
     /* 7points   */ gamemode == 7
   );
 
-  if (gamemode != 10) return;
+  unsigned long time;
+  if (gamemode == 10) {
+    time = (gameover || suddendeath)
+      ? 0
+      : (1 + (endtime - millis()) / 1000);
+  }
+  else {
+    time = gameover
+      ? (endtime  - begintime) / 1000
+      : (millis() - begintime) / 1000;
+  }
 
-  unsigned long timeleft =
-    (gameover || suddendeath)
-    ? 0
-    : (1 + (endtime - millis()) / 1000);
-  byte digit1 = (timeleft / 600) % 10;
+  byte digit1 = (time / 600) % 10;
   setdigit(TD1, digit1 ? digit1 : BLANK);
-  setdigit(TD2, (timeleft / 60) % 10);
-  setdigit(TD3, (timeleft % 60) / 10);
-  setdigit(TD4, (timeleft % 10));
+  setdigit(TD2, (time / 60) % 10);
+  setdigit(TD3, (time % 60) / 10);
+  setdigit(TD4, (time % 10));
 }
 
 
@@ -164,7 +172,13 @@ void start(byte newmode) {
   score2   = 0;
   gamemode = newmode;
   overtime = 0;
-  endtime  = (gamemode == 10 ? (millis() + 600000) : 0);
+  if (gamemode == 10) {
+    endtime = millis() + 600000;
+  }
+  else {
+    begintime = millis();
+    endtime = 0;
+  }
   gameover = false;
 }
 
@@ -175,16 +189,22 @@ void stop() {
 
 void loop() {
   buzzer.check();
-  if (startbutton.pressed()) start(gameover ? gamemode : (gamemode == 10 ? 7 : 10));
-    
+  if (startbutton.pressed()) start((score1 || score2) ? gamemode : (gamemode == 7 ? 10 : 7));
+
   show();
-    
+
   if (gameover || !gamemode) return;
 
-  if (goal1.pressed()) { buzzer.on(800); score1++; }
-  if (goal2.pressed()) { buzzer.on(800); score2++; }
-    
-  if (gamemode == 7 && (score1 >= 7 || score2 >= 7)) stop();
+  if ((millis() - lastgoal) > 2000) {  // debounce thoroughly
+    if (goal1.pressed()) { buzzer.on(800); score1++; lastgoal = millis(); }
+    if (goal2.pressed()) { buzzer.on(800); score2++; lastgoal = millis(); }
+  }
+
+  if (gamemode == 7 && (score1 >= 7 || score2 >= 7)) {
+    endtime = millis();
+    stop();
+  }
+
   if (suddendeath && score1 != score2) stop();
 
   if (gamemode == 10 && !suddendeath && (millis() >= endtime)) {
